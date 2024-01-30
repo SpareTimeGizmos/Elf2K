@@ -1,0 +1,92 @@
+#++
+# help.Elf2K - (alternate) Help text for Elf 2000 EPROM
+#
+# Copyright (C) 2006-2021 by Spare Time Gizmos.  All rights reserved.
+#
+# This firmware is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+# Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#DESCRIPTION:
+#   This text file is the source for the Elf 2000 monitor help that's stored
+# in the EPROM image.  It's what you get when you type the monitor "HELP"
+# command.  This file is converted to a .HEX image by the romtext program
+# and then merged into the EPROM image by rommerge.
+#
+#   THIS IS THE "ALTERNATE" VERSION FOR SYSTEMS WITHOUT VT1802 SUPPORT BUT
+# WHICH INCLUDE FORTH!
+#
+#IMPORTANT!
+#   Lines which begin with a "#" are comments and are completely discarded by
+# the romtext program, up to and including the newline at the end.  EVERYTHING
+# ELSE, including spaces, tabs, newlines, EVERYTHING, gets put into the EPROM!
+#
+# REVISION HISTORY:
+# dd-mmm-yy	who     description
+# 22-Feb-06	RLA	New file.
+# 10-Aug-23	RLA	Alternate version w/o VT1802 but with Forth.
+#--
+PROGRAM CONTROL COMMANDS
+    B[oot]			-- Boot ElfOS disk operating system
+    CALL addr			-- CALL an application program w/SCRT (P=3)
+    RUN [addr]			-- RUN an application program (P=0)
+    CONT[inue]			-- continue after a break point
+
+BUILT IN LANGUAGES
+    BAS[ic] [NEW|OLD]		-- rc/BASIC L2 interpreter
+    FOR[th] [NEW|OLD]		-- rc/Forth interpreter
+    ASM [NEW|OLD]		-- interactive editor and assembler
+    VI[sual]                    -- Visual/02 interactive debugger
+    SED[it]			-- disk sector editor
+
+MEMORY AND I/O COMMANDS
+    E[xamine] addr			-- examine one byte
+    E[xamine] addr1 addr2		-- dump a range of bytes
+    D[eposit] addr data [data ...]	-- deposit data in memory
+    IN[put] port			-- read data from an I/O port
+    OU[tput] port data			-- write data to an I/O port
+    :llaaaattdddd..cc			-- load an INTEL hex record
+
+SET COMMANDS
+    SE[t] Q [0|1]			-- set or reset Q output
+    SE[t] DA[te] mm/dd/yyyy hh:mm:ss	-- set RTC date and time
+    SE[t] RES[tart] [addr|BOOT|NONE]	-- set power on action
+    SE[t] NVR DEFAULT			-- initialize NVR to default values
+
+SHOW COMMANDS
+    SH[ow] CPU		-- show CPU type and speed (requires RTC)
+    SH[ow] DA[te]	-- show current date and time
+    SH[ow] DP		-- show monitor data page
+    SH[ow] EF		-- show status of all EF inputs
+    SH[ow] IDE		-- show all IDE devices
+    SH[ow] MEM[ory]	-- show amount of BIOS memory
+    SH[ow] NVR		-- show contents of the RTC/NVR chip
+    SH[ow] TERM[inal]	-- show console port and baud rate
+    SH[ow] REG[isters]	-- show registers after a breakpoint
+    SH[ow] RES[tart]	-- show restart option
+    SH[ow] VER[sion]	-- show monitor and BIOS version
+
+TEST COMMANDS
+    TE[st] RAM		-- exhaustive test of system RAM
+    TE[st] PIX[ie]	-- test CDP1861 video subsystem
+
+OTHER COMMANDS
+    HEL[p]		-- print this text
+    CLS			-- clear VT1802 screen
+    ; any text		-- comment command procedures
+    ^C			-- cancel current command line
+    <BREAK>		-- interrupt execution of long commands
+
+STARTUP SWTICH OPTIONS
+    0 1 0 0   0 0 1 0	-- force SRAM to be initialized
+    0 1 0 0   0 0 1 1	-- force SRAM and NVR both to be initialized

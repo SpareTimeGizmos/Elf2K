@@ -1,0 +1,94 @@
+#++
+# config.Elf2K-alt - (alternate) Configuration for Elf 2000 EPROM
+#
+# Copyright (C) 2021 by Spare Time Gizmos.  All rights reserved.
+#
+# This Makefile is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+# Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#DESCRIPTION:
+#   This file is included by the main STG EPROM Makefile and it defines the
+# actual software components present and the memory layout used by the Elf2K
+# EPROM.  If you want to change what's included the EPROM - e.g. if you want to
+# eliminate Forth, or if you want to move things around in memory - then change
+# this file.  The main reason why this is done thru the Makefile rather than the
+# assembler is because Make needs to know which files to assemble and combine
+# into the EPROM image.
+#
+#   THIS IS AN ALTERNATE VERSION OF THE ELF2K EPROM CONFIGURATION. THIS VERSION
+# INCLUDES FORTH, HOWEVER OMITS SUPPORT FOR THE SPARE TIME GIZMOS VT1802 CARD.
+#
+# EPROM Memory Map (Elf2K alternate version)
+# ------------------------------------------
+#	$8000 .. $97FF	- Monitor    (24 pages)
+#	$9800 .. $A0FF	- HELP       ( 9 pages)
+#	$A100 .. $A3FF	- SEDIT      ( 3 pages)
+#	$A400 .. $B0FF	- EDTASM     (13 pages)
+#	$B100 .. $C1FF 	- VISUAL/02  (17 pages)
+#	$C200 .. $DBFF	- rc/BASIC   (26 pages)
+#	$DC00 .. $EFFF	- rc/Forth   (20 pages)
+#	$F000 .. $F2FF	- XMODEM     ( 3 pages)
+#	$F300 .. $FFFF	- BIOS       (13 pages)
+#
+# REVISION HISTORY:
+# dd-mmm-yy	who     description
+#  3-Jan-21	RLA	Create new Elf2K config from PicoElf config
+# 10-Aug-23     RLA	Create alternate ELf2K config to include Forth
+#--
+
+#   These variables define where the STG monitor loads and the page of RAM that
+# is allocated for the monitor's use. This location, $8000, is pretty much cast
+# in stone because the both the Elf2K and the PicoElf hardware forces a startup
+# at this location after a hard reset. It's included here only for completeness
+# and you can't ever change it!
+BOOTS=08000H			# where the monitor lives
+WARMB=($(strip $(BOOTS))+3)	# monitor warm start entry point 
+RAMPAGE=07F00H			# one page of RAM for the monitor's use
+
+#   The VT52 emulator, which works with the Elf 2000 80 column Video card,
+# occupies 2K of EPROM and normally it's located just above the monitor.  The
+# VT52 emulator also requires 2K of SRAM for the frame buffer (80 characters
+# by 24 rows is 2000 bytes), which is usually located at the top of RAM just
+# below the monitor's data page.  BTW, if the video card isn't installed then
+# this memory never gets used by the VT52 emulator, and can be used for other
+# purposes...
+#VIDEO=09800H			# where the VT52 emulator lives
+#INIT75=($(strip $(VIDEO)))	# VT1802 initialization entry point
+#VTPUTC=($(strip $(VIDEO))+3)	# VT1802 character output entry point
+#SCREEN=($(strip $(RAMPAGE))-2048)# 2K of screen memory used by the VT1802
+
+# Defining PIXIE (the actual value doesn't matter) includes the CDP1861 code ...
+PIXIE=1861H
+
+#   The help text for the Elf 2000 monitor is fairly big - it takes over
+# 2K of memory, and isn't actually needed to use the Elf 2000.  It's really
+# handy, however, and if there's room we want to keep it!
+HELP=09800H			# where the help text lives
+
+#   Mike's 1802 BIOS is used by the monitor, by the various languages present
+# in the EPROM (Forth, BASIC, Editor/Assembler, etc), and by Mike's 1802 disk
+# operating system, Elf0S.  Once again you're pretty much stuck with this, and
+# you really can't change this location!
+BIOS=0FF00H			# Mike's 1802 BIOS vector table
+EBIOS=0F800H			# Extended BIOS for the Elf 2000
+
+#   Mike Riley's Editor/Assembler, Forth and L2 BASIC interpreters can also
+# share the EPROM - defining any of the following symbols enables the
+# corresponding monitor command and loads the component into the EPROM image.
+EDTASM=0A400H			# 1802 Editor/Assembler
+VISUAL=0B100H			# Visual/02 interactive debugger
+BASIC=0C200H			# Level 2 BASIC interpreter
+SEDIT=0A100H			# "Sector Editor" for poking around IDE drives
+XMODEM=0F000H			# Xmodem shared end and receive code
+FORTH=0DC00H			# Tiny Forth interpreter
