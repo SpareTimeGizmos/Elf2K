@@ -1,5 +1,8 @@
-# Elf2K
-The Spare Time Gizmos’ COSMAC Elf 2000 is a reproduction of the original COSMAC Elf as published in the pages of Popular Electronics magazine, August 1976, and the Elf 2000 was itself published in the August and September 2006 issues of Nuts and Volts magazine.
+# Spare Time Gizmos COSMAC Elf 2000
+
+##Overview
+
+The Spare Time Gizmos COSMAC Elf 2000 is a reproduction of the original COSMAC Elf as published in the pages of Popular Electronics magazine, August 1976.  The Spare Time Gizmos Elf 2000 was itself published in the August and September 2006 issues of Nuts and Volts magazine.
 
 Although I tried to keep the look and feel of the original, I had no hesitation about updating the Elf 2000 with the “latest” in hardware. Unlike its ancestor, the Spare Time Gizmos’ COSMAC Elf 2000 features:
 
@@ -22,3 +25,21 @@ Although I tried to keep the look and feel of the original, I had no hesitation 
 * An automatic bootstrap to allow the Elf 2000 to be used without any switches or keypad. On power up, it can wait for download from a PC, or automatically begin running a program stored in EPROM or non-volatile RAM. A VCC low voltage monitor in the Elf 2000 ensures that the CPU is reset on power up and power down regardless of the switch settings.
 
 * A circuit that works with either the original CDP1802 chip or any of the later CDP1804/1805/1806 chips. The classic Elf "load" mode, of course, requires a genuine 1802 chip.
+
+##Expansion Options
+
+A number of daughter cards and other expansion options also exist for the Elf 2000, including:
+
+* STG1681 Pixie Graphics Replacement - If you can't get a CDP1861 Pixie graphics chip then don't despair; the Spare Time Gizmos STG1861 emulator is built on a small daughter card that fits on top of the main Elf 2000 board and plugs into the CDP1861 socket.  The STG1861 uses two PLDs and two 74HCxx TTL chips to emulate the original CDP1861 and is an exact functional replacement for the CDP1861.  No software changes are required and, in fact, the software can't tell the difference!
+
+* Disk, UART and RTC Board - Designed to allow you to run the ElfOS disk operating system, this daughter card contains a CompactFlash/IDE/ATA interface, including an onboard CompactFlash socket and also a standard 40 pin male header for connecting an external drive.  This board also contains an 8250/16450/16550 UART with a programmable baud rate generator and partial modem control.  Lastly, a time of day clock and non-volatile RAM is also provided using the DS12887A, DS12887, DS1287 or MC146818A chips.
+
+* 80 Column Text Video Board - This daughter card is able to generate a real 80 column by 24 line text display on a CGA compatible CRT or RS-170 composite video monitor.  Reverse video, underline, and blinking video attributes and four different character sets may be selected and simultaneously displayed under software control. The 1802's DMA system to fetch ASCII characters directly from a buffer anywhere in RAM or EPROM and, unlike the CDP1861 Pixie video, the video timing for the video card is independent of the CPU clock.  The EPROM contains a VT52 terminal emulator that works with the VT1802 and takes care of all the work necessary for maintaining the display. The firmware allows as a replacement for the console terminal and works with BASIC, Forth, EDIT/ASM, or ElfOS.
+
+* General Purpose I/O Card - This daughter card integrates three independent I/O functions onto a single card.  The firsts, a PS/2 keyboard interface converts the PS/2 protocol and presents the keystrokes the 1802 as if it were a simple parallel ASCII keyboard.  Next is an 8255 programmable parallel I/O (PPI) chip which provides 24 I/O bits that can be configured as inputs, outputs, or as an 8 bit bidirectional port.  Lastly, there is a speaker for generating arbitrary tones or even simple music. 
+
+* Music Card - This card contains an AY-3-8912 3 channel programmable sound generator chip.  This sound chip was very popular in many arcade games and personal computers of the 1980s, including the ZX Spectrum and the TRS-80 CoCo. 
+
+* Hexadecimal Keypad - This accessory board replaces the standard toggle switches with a push button keypad similar to the Quest Super Elf.  Sixteen keys are provided for direct hexadecimal entry, and five additional buttons (RESET, RUN, LOAD, MP and INPUT) are for mode control.
+
+* Embedded Elf - Not an accessory as such, but a complete Elf in itself, the Embedded Elf is a slightly simplified and much smaller version of the Elf 2000. The Embedded Elf is exactly the same size and form factor as and stacks perfectly with the above daughter cards to form a cute little "cube". The Embedded Elf can run the same software as the Elf 2000 and, in fact, uses the exact same monitor firmware EPROM as the Elf 2000.

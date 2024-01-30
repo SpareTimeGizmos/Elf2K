@@ -1,0 +1,130 @@
+/* video.pld - Spare Time Gizmos Elf Video Board Timing and Video PLD	*/
+/*									*/
+/*   Copyright (C) 2005 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+NAME            VIDEO;
+PARTNO          VIDEO;
+REVISION        B;
+DATE            05/24/05;
+DESIGNER        Robert Armstrong;
+COMPANY         Spare Time Gizmos;
+ASSEMBLY        ELFVIDEO;
+LOCATION        U5;
+DEVICE          G22V10;
+
+/* INPUTS... */
+Pin  1 = PCLOCK;	/* master timing clock (11.34MHz)		*/
+Pin  2 = VIDEO_ON;	/* inhibits video until the 8275 is initialized	*/
+/* Pin  3 = NC */
+/* Pin  4 = NC */
+/* Pin  5 = NC */
+/* Pin  6 = NC */
+Pin  7 = RVV;		/* 8275 reverse video output			*/
+Pin  8 = VSP;		/*   "  video suppression (blanking) output	*/
+Pin  9 = LTEN;		/*   "  light enable output			*/
+Pin 10 = HSYNC;		/* horizontal sync timing pulse			*/
+Pin 11 = VSYNC;		/* vertical sync timing pulse			*/
+Pin 13 = SERIAL_VIDEO;	/* serial video output from video shifter	*/ 
+
+/* OUTPUTS... */
+Pin 23 = QA;		/* pixels per character counter (LSB)		*/
+Pin 22 = QB;		/*   "     "   "     "   "   "			*/
+Pin 21 = QC;		/*   "     "   "     "   "   "			*/
+Pin 20 = !LOAD_VSR;	/* load video shift register			*/
+Pin 19 = CCLOCK;	/* character clock to 8275			*/
+Pin 18 = RVV_DELAYED;	/* RVV input synchronized with video		*/
+Pin 17 = VSP_DELAYED;	/* VSP   "     "     "     "     "		*/
+Pin 16 = LTEN_DELAYED;	/* LTEN  "     "     "     "     "		*/
+Pin 15 =  COMPOSITE_VIDEO;/* composite video (including RVV/VSP/LTEN)	*/
+Pin 14 = !COMPOSITE_SYNC; /* composite sync output			*/
+
+
+/*   This little state machine counts the pixel clock and generates the	*/
+/* character clock (CCLOCK) and load video shift register (LOAD_VSR)	*/
+/* outputs.  You could change the video to either seven or nine pixels	*/
+/* per character glyph fairly easily just by fiddling with this code.	*/
+/*									*/
+/*   Note that the character clock needs to be fairly long - two whole	*/
+/* pixel times, or about 166ns, to meet the timing requirements of the	*/
+/* 8275 datasheet.  The VSR clock, however, ????			*/
+FIELD Q = [QC, QB, QA];
+Q.ar = 'B'0;  Q.sp = 'B'0;
+sequence Q {
+  present 'D'0
+    out CCLOCK;
+    default next 'D'1;
+  present 'D'1
+    default next 'D'2;
+  present 'D'2
+    default next 'D'3;
+  present 'D'3
+    default next 'D'4;
+  present 'D'4
+    default next 'D'5;
+  present 'D'5
+    default next 'D'6;
+  present 'D'6
+    default next 'D'7;
+  present 'D'7
+    out CCLOCK;
+    if (!PCLOCK) out LOAD_VSR;
+     default next 'D'0;
+}
+
+/*   The video stage is effectively pipelined and every time the VSR is	*/
+/* clocked, it's latching the data for the previous character, which is	*/
+/* still on the character generator EPROM outputs, even while the 8275	*/
+/* is changing the EPROM inputs for the next character.  This allows a	*/
+/* full character time, 666ns, for the EPROM access (which is a good	*/
+/* thing, since EPROMs aren't very fast!) but it does have the problem	*/
+/* that the video is delayed by one character time from the other 8275	*/
+/* outputs.								*/
+/*									*/
+/*   To fix this, we have to pipline the 8275 VSP, RVV and LTEN outputs	*/
+/* and delay them by one character time as well.  The easiest thing 	*/
+/* would be to use flip flops clocked by CCLOCK, but in the GAL all	*/
+/* flip flops must share the same clock and we're already comitted to	*/
+/* to using PCLOCK.  So our flip flops get clocked on on every pixel,	*/
+/* but we arrange to let them change states only on the last pixel of	*/
+/* every character.							*/
+/*									*/
+/*  If we don't do this then all the video attributes, including blink,	*/
+/* reverse video, underline AND THE CURSOR (!!) will all be off by one	*/
+/* character position!							*/
+VSP_DELAYED.ar = 'B'0;  VSP_DELAYED.sp = 'B'0;
+VSP_DELAYED.d = (VSP & Q:7) # (VSP_DELAYED & Q:[0..6]);
+RVV_DELAYED.ar = 'B'0;  RVV_DELAYED.sp = 'B'0;
+RVV_DELAYED.d = (RVV & Q:7) # (RVV_DELAYED & Q:[0..6]);
+LTEN_DELAYED.ar = 'B'0;  LTEN_DELAYED.sp = 'B'0;
+LTEN_DELAYED.d = (LTEN & Q:7) # (LTEN_DELAYED & Q:[0..6]);
+
+/*   Note that in principle HRTC and VRTC need to be delayed as well,	*/
+/* but in this case the error is small (1 part in 96 for HRTC, and one	*/
+/* part in about 2000 for VRTC) so it's not so important.  And in any	*/
+/* case this error can be negated by adjusting the horizontal and vert-	*/
+/* ical position trimmers (TR1 and TR2).				*/
+
+
+/*   The last thing we do is to generate the composite video by comb-	*/
+/* ining the serial video from the VSR with the video suppression (VSP)	*/
+/* reverse video (RVV) and light enable (LTEN) outputs from the 8275.	*/
+/* The composite sync output is used to generate the RS-170 video (the	*/
+/* CGA monitor has separate sync inputs) and is generated simply by	*/
+/* XORing the horizontal and vertical syncs.  Note that both outputs	*/
+/* are inhibited by VIDEO_ON until the 8275 has been initialized.	*/
+COMPOSITE_VIDEO = (((SERIAL_VIDEO & !VSP_DELAYED) $ RVV_DELAYED) # LTEN_DELAYED) & VIDEO_ON;
+COMPOSITE_SYNC = (HSYNC $ VSYNC) & VIDEO_ON;

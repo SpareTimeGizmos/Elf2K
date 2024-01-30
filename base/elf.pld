@@ -1,0 +1,137 @@
+/* elf.pld - Spare Time Gizmos COSMAC Elf 2000 GAL			*/
+/*									*/
+/*   Copyright (C) 2004 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+/* Missing ! from BOOTSTRAP input... */
+NAME		Elf;
+PARTNO		Elf;
+REVISION	D;
+DATE		0/18/04;
+DESIGNER	Robert Armstrong;
+COMPANY		Spare Time Gizmos;
+ASSEMBLY	ELF2K;
+LOCATION	U7;
+DEVICE		G22V10;
+                                                    
+
+/* INPUTS...								*/
+Pin  1 = !BOOTSTRAP;	/* TRUE to force execution from EPROM		*/
+Pin  2 = !MEMORY_PROTECT;/* TRUE to protect memory from changes		*/
+Pin  3 = !CLEAR;	/* CDP1802 CLEAR mode control			*/
+Pin  4 = !WAIT;		/*    "    WAIT    "   "   "			*/
+/* Pin  5 = unused */
+Pin  6 = TPB;		/*   "       "      "   B			*/
+Pin  7 = !MRD;		/* CDP1802 memory read strobe			*/
+Pin 13 = !MWR;		/*    "     "  "  write   "			*/
+Pin  8 = N0;		/* CDP1802 I/O address line #1 (LSB)		*/
+Pin  9 = N1;		/*    "     "     "     "   #2			*/
+Pin 10 = N2;		/*    "     "     "     "   #3 (MSB)		*/
+Pin 11 = A15;		/* memory address bit #15 (MSB)			*/
+
+/* OUTPUTS...								*/
+Pin 23 = !ENABLE_SR;	/* enable switch register buffer		*/
+Pin 22 = VIDEO_ON;	/* video on toggle to CDP1861			*/
+Pin 21 = VIDEO_OFF;	/*   "   off   "   "     "			*/
+Pin 20 = !RAM_SELECT;	/* chip select signal for the 62256 SRAM	*/
+Pin 19 = !ROM_SELECT;	/*   "     "     "     "   "  27C256 EPROM	*/
+Pin 18 = !CLK_DATA_DISP;/* data display TIL311 clock			*/
+Pin 17 = !RAM_WRITE;	/* write strobe signal for the 62256 SRAM	*/
+Pin 16 = LOAD_LED;	/* HIGH to turn on the LOAD LED			*/
+Pin 15 = RUN_LED;	/*   "   "   "   "  "  RUN   "			*/
+Pin 14 = !CLR_BOOTSTRAP;/* clear the bootstrap flag			*/
+
+
+/*  Note that the TIL311 displays (high address, low address, and data)	*/
+/* all follow their inputs while the strobe (enable, clock) is low and	*/
+/* latch the data on the positive going edge...				*/
+
+/* Decode a few useful CDP1802 operational modes.... */
+RESET = CLEAR & !WAIT;
+LOAD = CLEAR & WAIT;  LOAD_LED = LOAD;
+RUN = !CLEAR & !WAIT;  RUN_LED = RUN;
+
+/* Decode some I/O addresses... */
+FIELD N = [N2,N1,N0];
+$define IO_SWITCH  'b'100
+$define IO_LEDS    'b'100
+$define IO_VIDEO   'b'001
+
+/*   The bootstrap flag is set by RESET and can be cleared by pretty	*/
+/* much any combination	of circumstances you like.  In this case, we	*/
+/* clear it on the first I/O instruction (i.e. N != 0) - this works	*/
+/* well with the current EPROM monitor since it clears bootstrap the	*/
+/* first time the monitor loads a POST code into the data display...	*/
+CLR_BOOTSTRAP = BOOTSTRAP & N:['b'001..'b'111];
+
+/*   In LOAD mode (and only in LOAD mode!) the switch register is ena-	*/
+/* bled every time we write to memory.  Memory writing is inhibited in	*/
+/* LOAD mode when ever a) the MEMORY PROTECT switch is on, or b) when	*/
+/* the address has wandered into the EPROM space...			*/
+/*									*/
+/*   In RUN mode, the switch register is enabled for an IN instruction	*/
+/* with a device code of 4 (0x6C).  We can tell that the current inst-	*/
+/* is an I/O instruction whenever the N lines are not zero, and we know	*/
+/* that the current instruction is an I/O input (as opposed to output)	*/
+/* when MRD is _not_ asserted (remember that I/O inputs _write_ to mem-	*/
+/* ory!).  Finally, we use TPB as the clock to tell us when to put	*/
+/* data from the peripheral (switches, in this case) on the bus.	*/
+ENABLE_SR =   (LOAD & MWR & !A15 & !MEMORY_PROTECT)
+	    # (RUN & TPB & !MRD & N:IO_SWITCH);
+
+/*   In LOAD mode, the data displays are enabled any time we're reading	*/
+/* from memory (i.e. when MRD is active).  A subtle but important point	*/
+/* is that in LOAD mode the 1802 actually idles between DMA IN requests	*/
+/* with MRD asserted, so the last addressed memory location will norm-	*/
+/* ally be on the bus...						*/
+/*									*/
+/*   In RUN mode, the data displays are enabled by an I/O output inst-	*/
+/* ruction with a device code of 4 (0x64). This is pretty much the same	*/
+/* as the I/O input case for the switches, except that this time we're	*/
+/* looking for MRD to be asserted (an I/O _output_ instruction must	*/
+/* _read_ from memory!)...						*/
+CLK_DATA_DISP =   (LOAD & MRD)
+		# (RUN & TPB & MRD & N:IO_LEDS);
+
+/*   The memory address decoding is pretty straight forward - the SRAM	*/
+/* socket is enabled for all memory accesses below 0x8000 and the EPROM	*/
+/* is enabled for addresses about 0x8000. The EPROM enable is inhibited	*/
+/* if MWR (memory write) is also true, to prevent bus conflicts in case	*/
+/* the program mistakenly attempts to write to EPROM.			*/
+/*									*/
+/*   Bootstrap mode adds another complication, however - when BOOTSTRAP	*/
+/* is asserted, the EPROM will be enabled for all memory reads regard-	*/
+/* less of A15 and the RAM is never enabled.  When the BOOTSTRAP flag	*/
+/* is cleared, addressing returns to normal.  This allows us to trick	*/
+/* the CDP1802 into runing code located at 0x8000 immediately after	*/
+/* reset rather than the usual 0x0000.					*/
+RAM_SELECT = !A15 & !(BOOTSTRAP & RUN);
+ROM_SELECT = !MWR & (A15 # (BOOTSTRAP & RUN));
+
+/*   The write strobe (WE) for the SRAM normally just follows MWR, un-	*/
+/* less a) A15 is true (in which case EPROM is addressed instead) or	*/
+/* b) we're in LOAD mode and the MEMORY PROTECT switch is on. In either	*/
+/* of those two cases it's inhibited.  Note that the MEMORY PROTECT sw-	*/
+/* itch has no effect in RUN mode - it only works in LOAD mode!		*/
+RAM_WRITE = MWR & !A15 & !(MEMORY_PROTECT & LOAD);
+
+/*   The VIDEO_ON and VIDEO_OFF logic in the CDP1861 is effectively a	*/
+/* S-R flip flop, so only a short pulse on these outputs is required	*/
+/* to set or reset the video enable in the 1861.  An INP instruction	*/
+/* with an I/O address of 1 pulses VIDEO_ON and an OUT instruction with	*/
+/* an address of 1 pulses VIDEO_OFF...					*/
+VIDEO_ON  = RUN & TPB & !MRD & N:IO_VIDEO;
+VIDEO_OFF = RUN & TPB &  MRD & N:IO_VIDEO;

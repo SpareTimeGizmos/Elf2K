@@ -1,0 +1,191 @@
+/* bus.pld - Spare Time Gizmos Elf Video Board Bus Interface Gal	*/
+/*									*/
+/*   Copyright (C) 2005-6 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+NAME            BUS;
+PARTNO          BUS;
+REVISION        E;
+DATE            01/28/08;
+DESIGNER        Robert Armstrong;
+COMPANY         Spare Time Gizmos;
+ASSEMBLY        ELFVIDEO;
+LOCATION        U1;
+DEVICE          G22V10;
+
+/* INPUTS...								*/
+Pin  1 = ROW_ACTIVE;	/* 8275 CRTC stretched DRQ (row active) strobe	*/
+Pin  2 = CRTC_DRQ;	/* DMA data request from 8275 CRTC		*/
+Pin  3 = CRTC_IRQ;	/* Interrupt   "     "    "     "		*/
+Pin  4 = VIDEO_ON;	/* TRUE when the video display is enabled	*/
+Pin  5 = N0;		/* CDP1802 I/O address line #1 (LSB)		*/
+Pin  6 = N1;		/*    "     "     "     "   #2			*/
+Pin  7 = N2;		/*    "     "     "     "   #3 (MSB)		*/
+Pin  8 = TPA;		/* CDP1802 timing pulse A			*/
+Pin  9 = TPB;		/*    "       "     "   B			*/
+Pin 10 = SC0;		/* CDP1802 state code bit 0			*/
+Pin 11 = SC1;		/*    "      "    "    "  1			*/
+Pin 13 = !MRD;		/* CDP1802 memory read strobe			*/
+
+/* OUTPUTS...								*/
+Pin 23 = ROW_END;
+Pin 22 = IO_STRETCH_H;	/* used to extend the 1802 MRD access time	*/
+Pin 21 = IO_STRETCH_L;	/*   "  "     "    "    "   "     "     "	*/
+Pin 20 = !CRTC_DACK;	/*  "   CRTC DMA acknowledge			*/
+Pin 19 = !CRTC_CS;	/*  "     "  chip select (for register access)	*/
+Pin 18 = !CRTC_RD;	/*  "     "  read data strobe			*/
+Pin 17 = !CRTC_WR;	/*  "     "  write data strobe			*/
+Pin 16 = !CPU_EF1;	/* CDP1802 CPU EF1 flag				*/
+Pin 15 = !CPU_IRQ;	/*  "  "    "  interrupt request		*/
+Pin 14 = !CPU_DRQ;	/*  "  "    "  DMA request			*/
+
+/* The SC bits signal the current CPU state ... */
+FIELD SC = [SC1,SC0];
+FETCH = SC:0;  EXECUTE = SC:1;  DMAACK = SC:2;  INTACK = SC:3;
+
+/* The N bits select the current I/O device.... */
+FIELD N = [N2,N1,N0];
+CRTC_PORT = N:1 # N:5;
+
+
+/*  We could simply decode CRTC_RD as TPB & !MRD & DSEL, however on the	*/
+/* 1802 every I/O read is a memory write, and MWR ends halfway thru the	*/
+/* TPB pulse.  Decoding IORD this means that the device access time	*/
+/* plus the memory setup time must be less than 1/2 a 1802 clock cycle.	*/
+/* The 1802 is pretty slow and we can often get away with it, but there	*/
+/* is a better way...							*/
+/*									*/
+/*   The IO_STRETCH_H and IO_STRETCH_L outputs form a simple S-R flip	*/
+/* flop which is set on the trailing edge of TPA and reset on the 	*/
+/* trailing edge of TPB. This way we can stretch the IORD time to eight	*/
+/* clock cycles, which is nearly an eternity.  This extra access time	*/
+/* helps a bit when we're using the 8275 with a 5 MHz CDP180CE - the	*/
+/* read access time in this situation is otherwise a bit marginal.	*/
+IO_STRETCH_H = TPA # !IO_STRETCH_L;
+IO_STRETCH_L = !IO_STRETCH_H # TPB;
+STRETCH_READ = (IO_STRETCH_H & !TPA) # TPB;
+
+/*   These equations generate the chip select, read, write and DMA ack	*/
+/* strobes for the 8275 CRTC.  The CRTC_CS, CRTC_RD and CRTC_WR outputs	*/
+/* are asserted any time the CPU executes an INP or OUT instruction for	*/
+/* one of the two I/O ports (usually 1 and 5) mapped to the CRTC.  	*/
+/*									*/
+/*   To save an I/O pin on the GAL, the 8275 A0 input is hard wired to 	*/
+/* the N2 line - that means that I/O ports 4..7 always access the CRTC	*/
+/* parameter register (A0=1) and I/O ports 1..3 access the CRTC command	*/
+/* and status register (A0=0), and the I/O decoding in this GAL can't 	*/
+/* change that.  Sorry!  BTW, note that CRTC_WR	must be asserted for	*/
+/* both I/O writes to the 8275 AND DMA acknowledge cycles, but CRTC_CS	*/
+/* is asserted ONLY for I/O instructions and not DMA.			*/
+/*									*/
+/*   When it's reading characters from the frame buffer with DMA, the	*/
+/* 8275 wants to see CRTC_DACK and CRTC_WR asserted for every byte but	*/
+/* in this case	it specifically DOES NOT want to see CRTC_CS asserted. 	*/
+/* It'll screw up if you do!  This is the reason why we can't simply	*/
+/* hardwire CRTC_CS to be permanently asserted and just control	the 	*/
+/* 8275 with the CRTC_RD and CRTC_WR signals. CRTC_DACK is easy to	*/
+/* derive, though - we just decode the CPU's SC2 (DMA) state.		*/
+CRTC_CS = CRTC_PORT;
+CRTC_RD = STRETCH_READ & !MRD & CRTC_PORT;
+CRTC_WR = (TPB & MRD & CRTC_PORT) # (TPB & MRD & DMAACK);
+CRTC_DACK = DMAACK;
+
+/*  The firmware wants to see an interrupt at the end of every text row	*/
+/* so that it can handle the DMA pointer 'wrap around' from the bottom	*/
+/* of the frame buffer back up to the top - this wrap around has to be	*/
+/* done dynamically because the frame buffer address that corresponds	*/
+/* to the top of the screen changes every time we scroll.		*/
+/*									*/
+/*   My original plan was to simply have CRTC_DRQ set a interrupt req-	*/
+/* uest flip flop and then have this flip flop cleared by the 1802 SC3	*/
+/* (interrupt acknowledge) cycle.  Since the DMA locks out the 1802 CPU	*/
+/* and the 8275 is programmed for zero DMA burst spacing, the ISR	*/
+/* shouldn't actually start executing until the 8275 is finished DMAing	*/
+/* the row.								*/
+/*									*/
+/*   Unfortunately it doesn't actually work that way. It turns out that	*/
+/* even when the 8275 is programmed for zero burst spacing, it still	*/
+/* stops and releases CRTC_DRQ for one cycle every 8 characters.  Why?	*/
+/* I dunno - maybe it's tired, or maybe the 1802 is too fast for it 	*/
+/* (yeah, that's it!), or maybe it's a glitch in the 8275 internal	*/
+/* logic.  In any case, releasing CRTC_DRQ this way allows the 1802 to	*/
+/* execute an instruction each time it happens, and that's enough for	*/
+/* the ISR to get started and clear our end of row interrupt request	*/
+/* flip flop BEFORE the row has actually finished.  That means it sets	*/
+/* again as soon as the 8275 resumes DMA, and that causes TWO end of 	*/
+/* row interrupts to occur for every actual row of characters displayed.*/
+/* The software	actually works even under these circumstances, but the	*/
+/* extra overhead is way more than we can stand...			*/
+/*									*/
+/*   The fix is to use an external pulse stretcher (aka a retriggerable	*/
+/* one shot) to stretch the CRTC_DRQ pulse enough to fill in any gaps.	*/
+/* This new, stretched CRTC_DRQ, signal is called ROW_ACTIVE and is 	*/
+/* wired up to pin 1 (clock) of the GAL, where it clocks a 1 into the	*/
+/* ROW_END flip flop.  Since we don't actually want the CPU to be int-	*/
+/* errupted until the end of the row, we have to derive CPU_IRQ as	*/
+/* ROW_END & !ROW_ACTIVE, but that's OK.  Just like the original plan,	*/
+/* the ROW_END flip flop is cleared by the SC3 interrupt acknowledge	*/
+/* cycle.								*/
+/*									*/
+/*   After all that work, the firmware also needs an interrupt at the	*/
+/* end of every frame, but the 8725 CRTC_IRQ output already provides	*/
+/* for that and we can simply OR CRTC_IRQ in with the end of row int-	*/
+/* errupt that we generate.  Note that the 8275 doesn't clear its IRQ	*/
+/* output until the firmware actually reads the CRTC status register,	*/
+/* but that works fine for our purposes.
+
+/*   As if all that weren't enough, it turns out that the 8275 has some	*/
+/* other bad habits as well; the worst of which is that it doesn't have	*/
+/* a proper RESET input.  In principle it can power up in any state and	*/
+/* doing anything until the software initializes it.  Worse, if it is	*/
+/* already running and the user resets the Elf 2000 system, the 8275	*/
+/* just keeps on going!  This is especially bad for the 1802, since it	*/
+/* doesn't have any way to inhibit DMA AND it resets to the interrupt	*/
+/* enabled state (why some RCA engineer thought THAT was a good idea	*/
+/* I'll never know!).  It's also for the CRT, since the 8275 will just	*/
+/* generate random HSYNC and VSYNC frequencies until it is initialized.	*/
+/*									*/
+/*   To fix some of these problems, the hardware uses two extra NAND	*/
+/* gates to implement a simple S-R flip flop.  The output of this flip	*/
+/* flop is called VIDEO_ON and it's reset by a RESET (i.e. when RUN H 	*/
+/* goes low) and is set by reading the 8275 status register.  The VIDEO	*/
+/* ON signal DMA and IRQ outputs to the 1802, and it also inhibits the	*/
+/* 74HC221 dual monostables which generate the monitor sync pulses.	*/
+/*									*/
+/*   A final note - notice that the ROW_END reset is conditioned with	*/
+/* TPA as well as the state code for INTACK - that's necessary because	*/
+/* the ROW_END reset is asynchronous and without TPA momentary glitches	*/
+/* on the state codes (e.g. when the CPU goes from SC1 (EXECUTE) to SC2	*/
+/* (DMA) can spuriously reset ROW_END.  Suprisingly, this doesn't seem	*/
+/* to be a problem with a 1802 CPU, but with the 1805 it will glitch!	*/
+ROW_END.d = 'b'1;  ROW_END.sp = 'b'0;  ROW_END.ar = INTACK & TPA;  
+CPU_IRQ = ((ROW_END & !ROW_ACTIVE) # CRTC_IRQ)  &  VIDEO_ON;
+CPU_DRQ = CRTC_DRQ & VIDEO_ON;
+
+
+/*   The software uses EF1 to determine whether the current interrupt	*/
+/* is for the end of a row or the end of the frame.  Originally EF1 was	*/
+/* generated from CRTC_IRQ by this GAL, but it turns out that isn't	*/
+/* neccessary.  It's enough just to connect EF1 together with CPU_IRQ	*/
+/* thru 1N914 blocking diodes, of course) - that's because the end of	*/
+/* row interrupt we generate is cleared by the CPU SC3 cycle where as	*/
+/* CRTC_IRQ isn't cleared until the firware reads the CRTC status reg-	*/
+/* ister.  That way if an end of row generated the interrupt request	*/
+/* the firmware will always see CPU_IRQ/EF1 clear, but if the CRTC end	*/
+/* of frame causes the interrupt, CPU_IRQ/EF1 will still be set.  And	*/
+/* this saves us an output pin on the GAL, which might come in handy	*/
+/* some day!								*/
+CPU_EF1 = CPU_IRQ;

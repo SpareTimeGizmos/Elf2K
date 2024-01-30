@@ -1,0 +1,149 @@
+/* gpio.pld - Elf 2000 CDP1802 Bus Interface GAL for the GPIO card	*/
+/*									*/
+/*   Copyright (C) 2006 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+NAME            GPIO;
+PARTNO          GPIO;
+REVISION        B;
+DATE            05/08/06;
+DESIGNER        Robert Armstrong;
+COMPANY         Spare Time Gizmos;
+ASSEMBLY        ELFGPIO;
+LOCATION        U5;
+DEVICE          G22V10;
+
+
+/* INPUTS...								*/
+Pin  1 = !SET_KEY_DATA_RDY; /* APU signal to set the KEY_DATA_RDY flag	*/
+/* Pin 2 = NC */
+/* Pin 3 = NC */
+Pin  4 = RUN;		/* Elf 2000 RUN H (i.e. HALT L!) control	*/
+Pin  5 = N0;		/* CDP1802 I/O address line #1 (LSB)		*/
+Pin  6 = N1;		/*    "     "     "     "   #2			*/
+Pin  7 = N2;		/*    "     "     "     "   #3 (MSB)		*/
+Pin  8 = TPA;		/* CDP1802 timing pulse A			*/
+Pin  9 = TPB;		/*    "       "     "   B			*/
+Pin 10 = !MRD;		/* CDP1802 memory read strobe			*/
+/* Pin 11 = NC */
+/* Pin 13 = NC */
+
+/* OUTPUTS...								*/
+Pin 23 = RESET;		/* active high RESET (i.e. -RUN)		*/
+Pin 22 = CLK_CONTROL;	/* clocks control register in the speaker GAL	*/
+Pin 21 =!KEY_DATA_RDY_L;/* keyboard data ready flag to EF2/EF4		*/
+Pin 20 = KEY_DATA_RDY_H;/*  "   "     "    "     "   "  "   "		*/
+Pin 19 = !PPI_RD;	/* 8255 PPI I/O read strobe			*/
+Pin 18 = !PPI_WR;	/*  "    "   "  write   "			*/
+Pin 17 = STRETCH_L;	/* used to extend the 1802 MRD access time	*/
+Pin 16 = STRETCH_H;	/*   "  "     "    "    "   "     "     "	*/
+Pin 15 = !PPI_DIR;	/* data direction of the HC245 PPI bus buffer	*/
+Pin 14 = !RD_KEY_DATA;	/* enables the HC245 keyboard bus buffer	*/
+
+/* I/O addresses... */
+FIELD N = [N2,N1,N0];
+PPISEL = N:6;		/* PPI (8255) R/W is port 6			*/
+KEYSEL = N:7;		/* keyboard data (read only) is on port 7	*/
+CSEL   = N:7;		/* control (write only) is also on port 7	*/
+
+
+/* RESET_H (needed for the 89C2051 and 8255) is just RUN inverted... */
+RESET = !RUN;
+
+
+/*   We could simply decode IORD as TPB & !MRD & DSEL, however on the	*/
+/* 1802 every I/O read is a memory write, and MWR ends halfway thru the	*/
+/* TPB pulse.  Decoding IORD this way means that the device access time	*/
+/* plus the memory setup time must be less than 1/2 a 1802 clock cycle.	*/
+/* The 1802 is pretty slow and we can often get away with it, but there	*/
+/* is a better way...							*/
+/*									*/
+/*   The STRETCH_H and STRETCH_L outputs form a simple S-R flip flop	*/
+/* which is set on the trailing edge of TPA and reset on the trailing	*/
+/* edge of TPB. This way we can stretch the IORD time to 8 clock cycles	*/
+/* which is nearly an eternity.  This extra access time helps quite a	*/
+/* bit with the slower 8255 PPI...					*/
+STRETCH_H = TPA # !STRETCH_L;
+STRETCH_L = !STRETCH_H # TPB;
+STRETCH_READ = (STRETCH_H & !TPA) # TPB;
+IORD = STRETCH_READ & !MRD;
+
+/*  IOWR has no such fancy thing, however it still lasts for the entire	*/
+/* duration of TPB, or one complete 1802 clock cycle.  That's the best	*/
+/* we can do...								*/
+IOWR = TPB & MRD;
+
+
+/*   INPut and OUTput instructions for the PPI port read and write the	*/
+/* PPI (the specific PPI register being selected by two bits in the 	*/
+/* control register), but we also have to set the PPI_DIR signal so the	*/
+/* 'HC245 buffer passes data in the right direction.  An OUTput to the	*/
+/* control register (CSEL) asserts the CLK_CONTROL signal, but notice	*/
+/* that this data also passes thru the HC245 buffer.  Also, notice that	*/
+/* an INPut from the same I/O port reads the keyboard data and has no	*/
+/* effect on the PPI or the control register.  We only want to assert	*/
+/* PPI_DIR, which passes data from the GPIO internal bus to the	1802	*/
+/* system bus, when we're reading from the PPI.				*/
+PPI_RD = IORD & PPISEL;
+PPI_WR = IOWR & PPISEL;
+/*   When reading the PPI, the '245 buffer is still only enabled during	*/
+/* the TPB part of the cycle and not the entire STRETCH_READ part!	*/
+PPI_DIR = TPB & !MRD & PPISEL;
+CLK_CONTROL = IOWR & CSEL;
+
+
+/*   This handshaking between the AT89C2051 keyboard processor (aka the	*/
+/* "APU") and the CDP1802 (aka the "Host") is pretty simple.  Whenever	*/
+/* the APU has a byte of data to send to the host, it outputs the data	*/
+/* on P0 and then asserts the SET_KEY_DATA_RDY output (P3.4).  This	*/
+/* signal is wired to the clock input of the GAL and the rising edge	*/
+/* sets the KEY_DATA_RDY flag, which then asserts the host's EF2/EF4	*/
+/* (selected by jumper JP1) and IRQ (enabled by jumper JP2) inputs.	*/
+/*									*/
+/*   KEY_DATA_RDY is also wired to the APU input P3.3, and the firmware	*/
+/* knows not to change the P0 port data as long as this signal is set.	*/
+/* Everything stays like that until the host gets around to noticing	*/
+/* that a keyboard byte is ready and executes an INP instruction for	*/
+/* the keyboard data port.  During the INP instruction the GAL enables	*/
+/* the HC245 buffer (U2) to gate P0 onto the host data bus and at the	*/
+/* same time the GAL resets the KEY_DATA_RDY flip flop.  Eventually the	*/
+/* APU firmware notices that KEY_DATA_RDY has gone away and it clears	*/
+/* the SET_KEY_DATA_RDY output.  At this point we're ready to go back	*/
+/* to the beginning and repeat the process for the next byte.		*/
+/*									*/
+/*   There's one possible hole in this logic - the GAL actually clears	*/
+/* KEY_DATA_RDY at the START of the INP instruction.  There's no choice	*/
+/* because the GAL's flip-flop only has one edge triggered input.  On	*/
+/* paper, if the APU is fast enough, it could see KEY_DATA_RDY cleared	*/
+/* and output the next byte before the INP instruction finishes; if the	*/
+/* APU changes the data on P0 before the INP is completed then the host	*/
+/* will read garbage.							*/
+/*									*/
+/*   In real life, with a 1.77MHz (3.579545/2) CPU clock, this window	*/
+/* (TPB & !MRD & DSEL) is about 300ns.  Considering that the 8051 needs	*/
+/* 1-2 us to execute a single instruction, this isn't likely to be a	*/
+/* problem!  The only time you might run into problems is if you slow	*/
+/* down the 1802 clock to kHz speeds or insert wait states into the INP	*/
+/* execution...								*/
+/*KEY_DATA_RDY_L.clk = SET_KEY_DATA_RDY;*/
+KEY_DATA_RDY_L.d = 'B'1;
+KEY_DATA_RDY_L.sp = 'B'0;
+/*   Note that KEY_DATA_RDY only needs to be reset during the TPB part 	*/
+/* of the cycle and not the entire STRETCH_READ part!  We'd also like	*/
+/* to add RESET to KEY_DATA_RDY_L.ar, but we can't...			*/
+KEY_DATA_RDY_L.ar = (TPB & !MRD & KEYSEL) /*# RESET*/;
+KEY_DATA_RDY_H = KEY_DATA_RDY_L;
+RD_KEY_DATA = IORD & KEYSEL;

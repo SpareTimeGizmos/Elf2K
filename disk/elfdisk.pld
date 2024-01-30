@@ -1,0 +1,114 @@
+/* disk.pld - Spare Time Gizmos Elf 2000 DISK/UART/RTC GAL		*/
+/*									*/
+/*   Copyright (C) 2005 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+/* Change CARD_OUT timing to be the same as IORD. */
+NAME		ELFDISK;
+PARTNO		ELFDISK;
+REVISION	C;
+DATE		04/23/05;
+DESIGNER	Robert Armstrong;
+COMPANY		Spare Time Gizmos;
+ASSEMBLY	ELFDISK;
+LOCATION	U1;
+DEVICE		G22V10;
+                                                    
+
+/* INPUTS...								*/
+Pin  1 = !RESET;
+Pin  4 = N0;		/* CDP1802 I/O address line #1 (LSB)		*/
+Pin  3 = N1;		/*    "     "     "     "   #2			*/
+Pin  2 = N2;		/*    "     "     "     "   #3 (MSB)		*/
+FIELD N = [N2,N1,N0];
+Pin  5 = !MRD;		/* CDP1802 memory read strobe			*/
+Pin  6 = TPA;		/* CDP1802 timing pulse A			*/
+Pin  7 = TPB;		/*    "       "     "   B			*/
+/* Pin  8 = N/C */
+/* Pin  9 = N/C */
+Pin 10 = DS0;		/* Device select bit 0				*/
+Pin 11 = DS1;		/*   "      "     "  1				*/
+Pin 13 = DS2;		/*   "      "     "  2				*/
+
+
+/* OUTPUTS...								*/
+Pin 23 = !IORD;		/* I/O read strobe				*/
+Pin 22 = !IOWR;		/*  "  write  "					*/
+Pin 21 = !CS1FX;	/* IDE CS1 chip select				*/
+Pin 20 = !CS3FX;	/*  "  CS3   "    "				*/
+Pin 19 = !CS_UART;	/* 8250/16450/16550 UART chip select		*/
+Pin 18 = !CS_RTC;	/* DS1287/DS12887/DS12887A RTC/NVR chip select	*/
+Pin 17 = STRETCH_H;	/* was CLK_NVR					*/
+Pin 16 = STRETCH_L;	/* was !RD_STATUS				*/
+Pin 15 = !CLK_CNTL;	/* clock control/device select register		*/
+Pin 14 =  CARD_OUT;	/* bus buffer direction control			*/
+
+
+/* I/O addresses... */
+CSEL = N:2;		/* control/status register is port 2		*/
+DSEL = N:3;		/* data register is port 3			*/
+
+/*   We could simply decode IORD as TPB & !MRD & DSEL, however on the	*/
+/* 1802 every I/O read is a memory write, and MWR ends halfway thru the	*/
+/* TPB pulse.  Decoding IORD this means that the device access time	*/
+/* plus the memory setup time must be less than 1/2 a 1802 clock cycle.	*/
+/* The 1802 is pretty slow and we can often get away with it, but there	*/
+/* is a better way...							*/
+/*									*/
+/*   The STRETCH_H and STRETCH_L outputs form a simple S-R flip flop	*/
+/* which is set on the trailing edge of TPA and reset on the trailing	*/
+/* edge of TPB. This way we can stretch the IORD time to 8 clock cycles	*/
+/* which is nearly an eternity.  This extra access time helps quite a	*/
+/* bit with the slower 8250 UARTs and slow CF/IDE cables or drives.	*/
+STRETCH_H = TPA # !STRETCH_L;  /* !(!TPA & STRETCH_L); */
+STRETCH_L = !STRETCH_H # TPB;  /* !(STRETCH_H & !TPB); */
+STRETCH_INPUT = (STRETCH_H & !TPA) # TPB;
+IORD = STRETCH_INPUT & !MRD & DSEL;
+
+/*  IOWR has no such fancy thing, however it still lasts for the entire	*/
+/* duration of TPB, or one complete 1802 clock cycle.  That's the best	*/
+/* we can do...								*/
+IOWR = TPB &  MRD & DSEL;
+
+/*  If CARD_OUT is asserted, then the Disk/UART/RTC/NVR card drives the	*/
+/* data bus; otherwise if CARD_OUT is not asserted then the data from	*/
+/* the CPU's data bus is driven onto the internal daughter card bus.	*/
+/* QED - CARD_OUT should be asserted for any read from the data or	*/
+/* status ports.  We could have just used IORD here and saved an output	*/
+/* pin (oh well, next time!)						*/
+CARD_OUT = IORD; /*TPB & !MRD & DSEL;*/
+
+/*  An output to the CSEL port writes both the control/select register	*/
+/* and the NVR address register.  The NVR address register must always	*/
+/* be loaded because we don't have any way to know in advance whether	*/
+/* it will be selected or not.  If it later turns out that the UART or	*/
+/* IDE is selected, loading the NVR address does no harm.  Note that	*/
+/* the only difference between the CLK_CNTL and CLK_NVR outputs is the	*/
+/* polarity of the signal...						*/
+/*									*/
+/*  Reading the status port is not implemented in this version of the	*/
+/* hardware and does nothing.  This potentialy leaves the status port	*/
+/* available to another peripheral device as an input only port.	*/
+CLK_CNTL = TPB & MRD & CSEL;
+
+/*  Decoding the chip selects is pretty simple.  The RTC/NVR is enabled	*/
+/* whenever DS0 is asserted; the UART is selected with DS0=0 and DS1=1,	*/
+/* and the disk is selected with DS0=DS1=0.  In the latter case the DS2	*/
+/* bit determines whether CS1FX or CS3FX is asserted...			*/
+CS_RTC  =  DS0;
+CS_UART = !DS0 &  DS1;
+CS3FX   = !DS0 & !DS1 &  DS2;
+CS1FX   = !DS0 & !DS1 & !DS2;

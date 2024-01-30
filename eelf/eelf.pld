@@ -1,0 +1,103 @@
+/* eelf.pld - Spare Time Gizmos Embedded Elf GAL			*/
+/*									*/
+/*   Copyright (C) 2004 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+NAME		EElf;
+PARTNO		EElf;
+REVISION	A;
+DATE		4/8/05;
+DESIGNER	Robert Armstrong;
+COMPANY		Spare Time Gizmos;
+ASSEMBLY	EELF;
+LOCATION	U7;
+DEVICE		G22V10;
+                                                    
+
+/* INPUTS...								*/
+/* Pin  1 = !BOOTSTRAP;	/* TRUE to force execution from EPROM		*/
+Pin  2 = !RESET;	/* (also called RUN H!)				*/
+Pin  3 = TPB;		/*   "       "      "   B			*/
+Pin  4 = !MRD;		/* CDP1802 memory read strobe			*/
+Pin  5 = !MWR;		/*    "     "  "  write   "			*/
+Pin  6 = A15;		/* memory address bit #15 (MSB)			*/
+Pin  7 = N0;		/* CDP1802 I/O address line #1 (LSB)		*/
+Pin  8 = N1;		/*    "     "     "     "   #2			*/
+Pin  9 = N2;		/*    "     "     "     "   #3 (MSB)		*/
+/* Pin 10 = unused */
+Pin 11 = Q_H;		/* So we can invert TTY signals if needed	*/
+Pin 13 = !TTL_RXD_L;	/*  "  "  "    "     "     "    "    "		*/
+
+/* OUTPUTS...								*/
+Pin 23 = !ENABLE_SR;	/* enable switch register buffer		*/
+Pin 22 = BOOTSTRAP_H;	/* BOOTSTRAP flip flop (internal)		*/
+Pin 21 = BOOTSTRAP_L;	/*   "   "     "    "    "   "			*/
+Pin 20 = !CS_RAM;	/* chip select signal for the 62256 SRAM	*/
+Pin 19 = !CS_ROM;	/*   "     "     "     "   "  27C256 EPROM	*/
+Pin 18 = CLK_DATA_DISP;/* data display TIL311 clock			*/
+Pin 17 = !RAM_WE;	/* write strobe signal for the 62256 SRAM	*/
+/* Pin 16 = unused */
+Pin 14 = TTL_RXD_H;	/* inverted copy of TTL_RXD_L			*/
+Pin 15 = !Q_L;		/*   "   "   "    " Q				*/
+
+
+FIELD N = [N2,N1,N0];
+
+
+/*   The bootstrap flag is set by RESET and can be cleared by pretty	*/
+/* much any combination	of circumstances you like.  In this case, we	*/
+/* clear it on the first I/O instruction (i.e. N != 0) - this works	*/
+/* well with the current EPROM monitor since it clears bootstrap the	*/
+/* first time the monitor loads a POST code into the data display...	*/
+SET_BOOTSTRAP = RESET;
+RESET_BOOTSTRAP = BOOTSTRAP_H & N:['b'001..'b'111];
+BOOTSTRAP_H = SET_BOOTSTRAP # (!BOOTSTRAP_L & !RESET_BOOTSTRAP);
+BOOTSTRAP_L = RESET_BOOTSTRAP # (!BOOTSTRAP_H & !SET_BOOTSTRAP);
+
+
+/*   In the embedded Elf, the switch register and data LEDs respond	*/
+/* only to the programmed I/O instructions that reference port #4.	*/
+/* There's no LOAD mode here and consequentially no load mode hacks!	*/
+ENABLE_SR     = TPB & !MRD & N:4;
+CLK_DATA_DISP = TPB &  MRD & N:4;
+
+
+/*   The memory address decoding is pretty straight forward - the SRAM	*/
+/* socket is enabled for all memory accesses below 0x8000 and the EPROM	*/
+/* is enabled for addresses about 0x8000. The EPROM enable is inhibited	*/
+/* if MWR (memory write) is also true, to prevent bus conflicts in case	*/
+/* the program mistakenly attempts to write to EPROM.			*/
+/*									*/
+/*   Bootstrap mode adds another complication, however - when BOOTSTRAP	*/
+/* is asserted, the EPROM will be enabled for all memory reads regard-	*/
+/* less of A15 and the RAM is never enabled.  When the BOOTSTRAP flag	*/
+/* is cleared, addressing returns to normal.  This allows us to trick	*/
+/* the CDP1802 into runing code located at 0x8000 immediately after	*/
+/* reset rather than the usual 0x0000.					*/
+CS_RAM = !A15 & !BOOTSTRAP_H;
+CS_ROM = !MWR & (A15 # BOOTSTRAP_H);
+
+/*   The write strobe (WE) for the SRAM normally just follows MWR, un-	*/
+/* less A15 is true (in which case some fool programmer is trying to	*/
+/* write to the EPROM !).						*/
+RAM_WE = MWR & !A15;
+
+
+/*   The TTL_RXD and Q outputs are simply inverted from their inputs -	*/
+/* this saves us an entire 74HC04 inverter chip!  Note that the actual	*/
+/* inversion is implicit in the way the pins are defined, hence there	*/
+/* is no inversion operator here!					*/
+Q_L = Q_H;  TTL_RXD_H = TTL_RXD_L;

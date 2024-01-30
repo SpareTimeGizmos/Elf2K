@@ -1,0 +1,103 @@
+/* musi.pld - Elf 2000 CDP1802 Bus Interface GAL for the AY-3-8910	*/
+/*									*/
+/*   Copyright (C) 2012 by Robert Armstrong, Milpitas, California.	*/
+/*									*/
+/*  This program is free software; you can redistribute it and/or	*/
+/* modify it under the terms of the GNU General Public License as	*/
+/* published by the Free Software Foundation; either version 2 of the	*/
+/* License, or (at your option) any later version.			*/
+/*									*/
+/*  This program is distributed in the hope that it will be useful, but	*/
+/* WITHOUT ANY WARRANTY; without even the implied warranty of		*/
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU	*/
+/* General Public License for more details.				*/
+/*									*/
+/*   You should have received a copy of the GNU General Public License	*/
+/* along with this program; if not, write to the Free Software		*/
+/* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA.	*/
+/*									*/
+NAME            MUSIC;
+PARTNO          MUSIC;
+REVISION        A;
+DATE            02/21/12;
+DESIGNER        Robert Armstrong;
+COMPANY         Spare Time Gizmos;
+ASSEMBLY        ELFMUSIC;
+LOCATION        U2;
+DEVICE          G22V10;
+
+
+/* INPUTS...								*/
+Pin 11 = RUN;		/* Elf 2000 RUN H (i.e. HALT L!) control	*/
+Pin  7 = N0;		/* CDP1802 I/O address line #1 (LSB)		*/
+Pin  6 = N1;		/*    "     "     "     "   #2			*/
+Pin  5 = N2;		/*    "     "     "     "   #3 (MSB)		*/
+Pin 10 = TPA;		/* CDP1802 timing pulse A			*/
+Pin  1 = TPB;		/*    "       "     "   B			*/
+Pin  9 = !MRD;		/* CDP1802 memory read strobe			*/
+/* Pins 2, 3, 4, 8, 13 = NC */
+
+/* OUTPUTS...								*/
+Pin 21 = PSG_BC1;	/* PSG bus control bit 1			*/
+Pin 20 = PSG_BC2;	/*  "   "    "  "   "  2			*/
+Pin 19 = PSG_BDIR;	/* PSG bus direction (in/out) control		*/
+Pin 17 = STRETCH_L;	/* used to extend the 1802 MRD access time	*/
+Pin 16 = STRETCH_H;	/*   "  "     "    "    "   "     "     "	*/
+Pin 15 = !PSG_RESET;	/* PSG master clear				*/
+Pin 14 = PSG_ALT_CLK;	/* PSG alternate clock 				*/
+/* Pins 18, 22, 23 = NC */
+
+/* I/O addresses... */
+FIELD N = [N2,N1,N0];
+SEL_ADDR = N:5;		/* PSG register select port (write only)	*/
+SEL_DATA = N:1;		/* PSG data port (read/write)			*/
+
+
+/*   PSG_RESET is just RUN inverted.  However note that PSG_RESET is	*/
+/* active low so we don't really even need an inverter - we could just	*/
+/* wire this up directly, but it's run thru the GAL just in case ...	*/
+PSG_RESET = !RUN;
+
+/*   For now, the alternate PSG clock is just TPB.  TPB will always be	*/
+/* 1/8th of the 1802's clock frequency, at least as long as the CPU is	*/
+/* running.  TPB is actually suppressed in the reset and idle states, 	*/
+/* but that doesn't bother us much...					*/
+PSG_ALT_CLK = TPB;
+
+/*   We could simply decode IORD as TPB & !MRD & DSEL, however on the	*/
+/* 1802 every I/O read is a memory write, and MWR ends halfway thru the	*/
+/* TPB pulse.  Decoding IORD this way means that the device access time	*/
+/* plus the memory setup time must be less than 1/2 a 1802 clock cycle.	*/
+/* The 1802 is pretty slow and we can often get away with it, but there	*/
+/* is a better way...							*/
+/*									*/
+/*   The STRETCH_H and STRETCH_L outputs form a simple S-R flip flop	*/
+/* which is set on the trailing edge of TPA and reset on the trailing	*/
+/* edge of TPB. This way we can stretch the IORD time to 8 clock cycles	*/
+/* which is nearly an eternity.  This extra access time helps quite a	*/
+/* bit with the slower 8255 PPI...					*/
+STRETCH_H = TPA # !STRETCH_L;
+STRETCH_L = !STRETCH_H # TPB;
+STRETCH_READ = (STRETCH_H & !TPA) # TPB;
+IORD = STRETCH_READ & !MRD;
+
+/*  IOWR has no such fancy thing, however it still lasts for the entire	*/
+/* duration of TPB, or one complete 1802 clock cycle.  That's the best	*/
+/* we can do...								*/
+IOWR = TPB & MRD;
+
+/*  The 8910 interface is wierd, but then it was designed to talk to a	*/
+/* CP1600 way back when.  The truth table we use (more or less copied	*/
+/* from the AY-3-8910 data sheets) is  	     	       	       		*/
+/*									*/
+/*	STATE		BDIR BC1 BC2					*/
+/*	-------------	---- --- ---					*/
+/*	IDLE		  0   0   1					*/
+/*	READ DATA	  0   1   1					*/
+/*	WRITE DATA	  1   0   1					*/
+/*	WRITE ADDRESS	  1   1   1					*/
+/*									*/
+/* Note that BC2 is always 1 - we could just hard wire it so...		*/
+PSG_BC2 = 'b'1;
+PSG_BC1 = (IORD & SEL_DATA) # (IOWR & SEL_ADDR);
+PSG_BDIR = (IOWR & SEL_DATA) # (IOWR & SEL_ADDR);
