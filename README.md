@@ -1,6 +1,6 @@
 # Spare Time Gizmos COSMAC Elf 2000
 
-##Overview
+## Overview
 
 The Spare Time Gizmos COSMAC Elf 2000 is a reproduction of the original COSMAC Elf as published in the pages of Popular Electronics magazine, August 1976.  The Spare Time Gizmos Elf 2000 was itself published in the August and September 2006 issues of Nuts and Volts magazine.
 
@@ -26,7 +26,7 @@ Although I tried to keep the look and feel of the original, I had no hesitation 
 
 * A circuit that works with either the original CDP1802 chip or any of the later CDP1804/1805/1806 chips. The classic Elf "load" mode, of course, requires a genuine 1802 chip.
 
-##Expansion Options
+## Expansion Options
 
 A number of daughter cards and other expansion options also exist for the Elf 2000, including:
 
@@ -34,12 +34,12 @@ A number of daughter cards and other expansion options also exist for the Elf 20
 
 * Disk, UART and RTC Board - Designed to allow you to run the ElfOS disk operating system, this daughter card contains a CompactFlash/IDE/ATA interface, including an onboard CompactFlash socket and also a standard 40 pin male header for connecting an external drive.  This board also contains an 8250/16450/16550 UART with a programmable baud rate generator and partial modem control.  Lastly, a time of day clock and non-volatile RAM is also provided using the DS12887A, DS12887, DS1287 or MC146818A chips.
 
-* 80 Column Text Video Board - This daughter card is able to generate a real 80 column by 24 line text display on a CGA compatible CRT or RS-170 composite video monitor.  Reverse video, underline, and blinking video attributes and four different character sets may be selected and simultaneously displayed under software control. The 1802's DMA system to fetch ASCII characters directly from a buffer anywhere in RAM or EPROM and, unlike the CDP1861 Pixie video, the video timing for the video card is independent of the CPU clock.  The EPROM contains a VT52 terminal emulator that works with the VT1802 and takes care of all the work necessary for maintaining the display. The firmware allows as a replacement for the console terminal and works with BASIC, Forth, EDIT/ASM, or ElfOS.
+* 80 Column Text Video Board - This daughter card is able to generate a real 80 column by 24 line text display on a CGA compatible CRT or RS-170 composite video monitor.  Reverse video, underline, and blinking video attributes and four different character sets may be selected and simultaneously displayed under software control. The 1802's DMA system to fetch ASCII characters directly from a buffer anywhere in RAM or EPROM and, unlike the CDP1861 Pixie, the video timing for the video card is independent of the CPU clock.  The EPROM contains a VT52 terminal emulator that works with the VT1802 and takes care of all the work necessary for maintaining the display. The firmware allows the VT1802 to be used as a replacement for the console terminal and works with BASIC, Forth, EDIT/ASM, or ElfOS.
 
-* General Purpose I/O Card - This daughter card integrates three independent I/O functions onto a single card.  The firsts, a PS/2 keyboard interface converts the PS/2 protocol and presents the keystrokes the 1802 as if it were a simple parallel ASCII keyboard.  Next is an 8255 programmable parallel I/O (PPI) chip which provides 24 I/O bits that can be configured as inputs, outputs, or as an 8 bit bidirectional port.  Lastly, there is a speaker for generating arbitrary tones or even simple music. 
+* General Purpose I/O Card - This daughter card integrates three independent I/O functions onto a single card.  The first, a PS/2 keyboard interface converts the PS/2 protocol and presents the keystrokes the 1802 as if it were a simple parallel ASCII keyboard.  Next is an 8255 programmable parallel I/O (PPI) chip which provides 24 I/O bits that can be configured as inputs, outputs, or as an 8 bit bidirectional port.  And lastly there is a speaker for generating arbitrary tones or even simple music. 
 
-* Music Card - This card contains an AY-3-8912 3 channel programmable sound generator chip.  This sound chip was very popular in many arcade games and personal computers of the 1980s, including the ZX Spectrum and the TRS-80 CoCo. 
+* Music Card - This card contains an AY-3-8912 three channel programmable sound generator chip.  This sound chip was very popular in many arcade games and personal computers of the 1980s, including the ZX Spectrum and the TRS-80 CoCo. 
 
 * Hexadecimal Keypad - This accessory board replaces the standard toggle switches with a push button keypad similar to the Quest Super Elf.  Sixteen keys are provided for direct hexadecimal entry, and five additional buttons (RESET, RUN, LOAD, MP and INPUT) are for mode control.
 
-* Embedded Elf - Not an accessory as such, but a complete Elf in itself, the Embedded Elf is a slightly simplified and much smaller version of the Elf 2000. The Embedded Elf is exactly the same size and form factor as and stacks perfectly with the above daughter cards to form a cute little "cube". The Embedded Elf can run the same software as the Elf 2000 and, in fact, uses the exact same monitor firmware EPROM as the Elf 2000.
+* Embedded Elf - Not an accessory as such, but a complete Elf in itself, the Embedded Elf is a slightly simplified and much smaller version of the Elf 2000. The Embedded Elf is exactly the same size and form factor as, and stacks perfectly with, any of the above daughter cards to form a cute little cube. The Embedded Elf can run the same software as the Elf 2000 and uses the exact same firmware EPROM as the Elf 2000.
