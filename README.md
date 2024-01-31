@@ -1,4 +1,4 @@
-# Spare Time Gizmos COSMAC Elf 2000
+# COSMAC Elf 2000
 
 ## Overview
 
