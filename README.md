@@ -1,5 +1,7 @@
 # COSMAC Elf 2000
 
+![Cover photo of the Elf 2000](images/Cover1.jpg)
+
 ## Overview
 
 The Spare Time Gizmos COSMAC Elf 2000 is a reproduction of the original COSMAC Elf as published in the pages of Popular Electronics magazine, August 1976.  The Spare Time Gizmos Elf 2000 was itself published in the August and September 2006 issues of Nuts and Volts magazine.
